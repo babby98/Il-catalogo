@@ -1,0 +1,9 @@
+[theme]
+primaryColor = "#2e86de"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#262730"
+textColor = "#fafafa"
+
+# QUI CAMBI IL FONT
+# Opzioni ufficiali: "sans serif", "serif", "monospace"
+font = "Funnel Sans:https://fonts.googleapis.com/css2?family=Funnel+Sans&display=swap"
