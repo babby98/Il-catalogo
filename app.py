@@ -112,7 +112,7 @@ def load_data():
 try:
     df = load_data()
 
-    styled_df = df.style.applymap(color_vote, subset=['VOTO']) \
+    styled_df = df.style.map(color_vote, subset=['VOTO']) \
                         .format({"VOTO": "{:.1f}"}) \
                         .set_properties(subset=['VOTO'], **{'text-align': 'center'})
     
