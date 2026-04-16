@@ -1,14 +1,25 @@
+from asyncio import log
+
 import streamlit as st
 import pandas as pd 
 import plotly.express as px
+from great_tables import GT, style, loc
 
 st.set_page_config(page_title="IL CATALOGO", layout="wide")
-
 st.title("IL CATALOGO")
 
 @st.cache_data
 
-def color_vote(voto):
+def color_award_list(award):
+    bgColor = {
+        1: "#fb8f67",
+        2: "#17e8a9",
+        3: "#368f8b",
+        4: "#f5df4d"
+    }
+    return bgColor.get(award, "#181818")
+
+def color_vote_list(voto):
 
     voto = round(voto, 1)
 
@@ -87,7 +98,14 @@ def color_vote(voto):
         tColor = "#ffffff"
     else:
         tColor = "#000000"
-    return f'background-color: {bgColor.get(voto, "#181818")};color: {tColor}; font-weight: bold;'
+
+    return [bgColor.get(voto, "#181818"), tColor]
+
+def color_vote(voto):
+
+    dCol = color_vote_list(voto)
+
+    return f'background-color: {dCol[0]};color: {dCol[1]}; font-weight: bold;'
 
 def load_data():
     sheet_id = "1OJXM5FtgFeDBllXsGmozXV2jAlLPiWif5vPqOjYx1Us"
@@ -100,28 +118,85 @@ def load_data():
     col_ssheet = ["ARTISTA", "ALBUM", "RELEASE", "", "LABEL", "VOTO", "GENERE", "TOP CANZONE"]
     df.columns = col_ssheet
 
-    df['VOTO'] = df['VOTO'].astype(str).str.replace(',', '.').astype(float)
-
     df = df.dropna(subset=['ARTISTA'])
+
+    df['ARTISTA'] = df['ARTISTA'].astype(str).str.title()
+    df['ALBUM'] = df['ALBUM'].astype(str).str.title()
+    df['VOTO'] = df['VOTO'].astype(str).str.replace(',', '.').astype(float)
+    df[""] = df[""].fillna("")
+    df["TOP CANZONE"] = df["TOP CANZONE"].fillna("")
+    df['TOP CANZONE'] = df['TOP CANZONE'].astype(str).str.title()
 
     df.index = df.index + 1
     df.index.name = 'N.'
     
     return df
 
+def style_empty_col(val):
+    if val == "":
+        return ""
+    try:
+        v = float(val)
+        bg_color = color_award_list(v)
+        return f'background-color: {bg_color}; color: transparent;'
+    except:
+        return ""
+
 try:
     df = load_data()
 
-    styled_df = df.style.applymap(color_vote, subset=['VOTO']) \
-                        .format({"VOTO": "{:.1f}"}) \
-                        .set_properties(subset=['VOTO'], **{'text-align': 'center'})
-    
-    st.dataframe(styled_df,
-                use_container_width=True
-            )
+    st.markdown("""
+        <style>
+        [data-testid="stDataFrame"] td:nth-child(7) {
+            text-align: center !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+    column_configuration = {
+        "ARTISTA": st.column_config.Column(
+            width=200
+        ),
+        "ALBUM": st.column_config.Column(
+            width=230
+        ),
+        "RELEASE": st.column_config.Column(
+            width=120,
+            alignment="center"
+        ),
+        "": st.column_config.Column(
+            width=32,
+            alignment="center"
+        ),
+        "LABEL": st.column_config.Column(
+            width=160,  
+        ),
+        "VOTO": st.column_config.NumberColumn(
+            format="%.1f",
+            width=50,
+            alignment="center"
+        ),
+        "GENERE": st.column_config.Column(
+            width=130,
+            alignment="center"
+        )
+    }
 
-    st.caption(f"Album totali: {len(df)}")
-    
+    col_tab, col_empty = st.columns([2, 1])
+
+    with col_tab:
+        st.subheader("Album ascoltati dal 2015 in poi")
+        styled_df = df.style.map(color_vote, subset=['VOTO']) \
+                            .map(style_empty_col, subset=[''])
+
+
+        st.dataframe(styled_df,
+                    use_container_width=True,
+                    column_config=column_configuration,
+                    height=765
+                )
+
+        st.caption(f"Album totali: {len(df)}")
 
 except Exception as e:
     st.error(f"ERRORE: caricamento dati fallito. Dettagli: {e}")
