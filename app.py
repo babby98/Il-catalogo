@@ -1,19 +1,19 @@
 import ColorScheme as csc
 import ColumnConfig
 import HistVotes
+import SidebarMenu
 
 import streamlit as st
 import pandas as pd 
 import plotly.express as px
 
 st.set_page_config(page_title="IL CATALOGO", layout="wide")
-st.title("IL CATALOGO")
 
 @st.cache_data
 
-def load_data():
+def load_data(pageName):
     sheet_id = "1OJXM5FtgFeDBllXsGmozXV2jAlLPiWif5vPqOjYx1Us"
-    sheet_name = "DAL%202015"
+    sheet_name = pageName.replace(" ", "%20")
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
 
     df=pd.read_csv(url, skiprows=0)
@@ -23,6 +23,7 @@ def load_data():
     df.columns = col_ssheet
 
     df = df.dropna(subset=['ARTISTA'])
+    df = df.dropna(subset=['VOTO'])
 
     df['ARTISTA'] = df['ARTISTA'].astype(str).str.title()
     df['ALBUM'] = df['ALBUM'].astype(str).str.title()
@@ -40,11 +41,13 @@ def load_data():
     return df
 
 try:
-    df = load_data()
-    col_tab, col_hist = st.columns([5, 3])
+    pageName = SidebarMenu.sidebar_menu()
+
+    df = load_data(pageName)
+    col_tab, col_hist = st.columns([2, 1])
 
     with col_tab:
-        st.subheader("Album ascoltati dal 2015 in poi")
+        st.subheader(f"Album ascoltati {pageName.lower()}")
         styled_df = df.style.map(csc.color_vote, subset=['VOTO']) \
                             .map(csc.style_empty_col, subset=['']) \
                             .map(csc.index_color, subset=['N.'])

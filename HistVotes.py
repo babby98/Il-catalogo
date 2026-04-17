@@ -5,7 +5,7 @@ import streamlit as st
 import pandas as pd
 
 def hist_votes(df):
-    st.subheader("Distribuzione dei voti dal 2015")
+    st.subheader("Distribuzione dei voti")
     df_hist = df.copy()
     df_hist['VOTO_INT'] = df_hist['VOTO'].apply(lambda x: int(x))
     vote_counts = df_hist['VOTO_INT'].value_counts().sort_index().reset_index()
@@ -24,7 +24,10 @@ def hist_votes(df):
     fig.update_traces(
         textposition='outside',
         textfont_size=13,
-        marker_color = colors
+        marker_color = colors,
+        cliponaxis=False,
+        insidetextanchor='start',
+        outsidetextfont=dict(size=11)
     )
 
     fig.update_layout(
@@ -32,10 +35,12 @@ def hist_votes(df):
         yaxis_title='Voto',
         yaxis=dict(tickmode='linear', dtick=1),
         showlegend=False,
-        plot_bgcolor='#0e1117',
+        plot_bgcolor="#0e1117",
         paper_bgcolor='#0e1117',
-        font=dict(color='white'),
-        height=500
+        font=dict(color='white', weight='bold'),
+        height=500,
+        margin=dict(r=160),
+        bargap=0.25
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='content')
