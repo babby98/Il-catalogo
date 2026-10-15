@@ -52,7 +52,7 @@ LASTFM_TTL = int(os.getenv("CATALOGO_LASTFM_TTL", "1800"))  # last.fm cache (s)
 COUNTRY_CACHE_FILE = Path(__file__).with_name("country_cache.json")
 LASTFM_CACHE_FILE = Path(__file__).with_name("lastfm_cache.json")
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv(
-    "CATALOGO_CORS", "http://localhost:3000,http://127.0.0.1:3000").split(",")]
+    "CATALOGO_CORS", "http://localhost:3000,http://127.0.0.1:3000,https://il-catalogo.onrender.com").split(",")]
 
 HTTP = requests.Session()
 HTTP.headers["User-Agent"] = "IlCatalogo/0.2 ( https://github.com/babby98/Il-catalogo )"

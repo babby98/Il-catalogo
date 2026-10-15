@@ -18,6 +18,8 @@ npm run dev            # http://localhost:3000
 `API_URL` (see `.env.example`) points the Next server at the Python API. The browser
 always calls same-origin `/api/*`, which Next rewrites to the backend.
 
+.\venv\Scripts\python.exe -m uvicorn api:app --reload --port 8000
+
 ## Pages
 
 | Route          | What                                                                         |
