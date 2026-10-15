@@ -2,3 +2,7 @@ streamlit
 pandas
 plotly
 great_tables
+requests
+fastapi
+uvicorn[standard]
+pycountry

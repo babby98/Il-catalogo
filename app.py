@@ -3,13 +3,32 @@ import ColumnConfig
 import HistVotes
 import SidebarMenu
 
+import requests
 import streamlit as st
 import pandas as pd 
 import plotly.express as px
+import time
 
 st.set_page_config(page_title="IL CATALOGO", layout="wide")
 
 @st.cache_data
+
+def get_lastfm_scrobbles(artist, album, api_key, username):
+    url = "http://ws.audioscrobbler.com/2.0/"
+    params = {
+        "method": "album.getinfo",
+        "api_key": api_key,
+        "artist": artist,
+        "album": album,
+        "username": username, # Importante: serve a dire di chi vogliamo gli ascolti
+        "format": "json"
+    }
+    try:
+        response = requests.get(url, params=params).json()
+        # Navighiamo nel JSON di risposta per trovare il playcount dell'utente
+        return response['album']['userplaycount']
+    except (KeyError, Exception):
+        return 0 # Ritorna 0 se il disco non viene trovato o non ci sono ascolti
 
 def load_data(pageName):
     sheet_id = "1OJXM5FtgFeDBllXsGmozXV2jAlLPiWif5vPqOjYx1Us"
@@ -18,8 +37,8 @@ def load_data(pageName):
 
     df=pd.read_csv(url, skiprows=0)
 
-    df = df.iloc[:, 1:9]
-    col_ssheet = ["ARTISTA", "ALBUM", "RELEASE", "", "LABEL", "VOTO", "GENERE", "TOP CANZONE"]
+    df = df.iloc[:, 1:10]
+    col_ssheet = ["ARTISTA", "ALBUM", "RELEASE", "", "LABEL", "VOTO", "GENERE", "TOP CANZONE", "SCROBBLES"]
     df.columns = col_ssheet
 
     df = df.dropna(subset=['ARTISTA'])
@@ -45,6 +64,23 @@ try:
 
     df = load_data(pageName)
     col_tab, col_hist = st.columns([2, 1])
+
+    # Esempio di integrazione nel tuo loop o trasformazione del dataframe
+    API_KEY = "e41a6874e211bc73ebc9ae65993ab928"
+    USER = "Babby98"
+
+    if st.button("Aggiorna statistiche ascolti"):
+        status_text = st.empty()
+        # Supponendo che 'df' sia il tuo DataFrame con le colonne 'Artista' e 'Titolo'
+        with st.spinner('Recupero ascolti da Last.fm...'):
+            for index, row in df.iterrows():
+                sMessage = f"{index}/{len(df)} Caricamento dati per: **{row['ARTISTA']}** - {row['ALBUM']}"
+                status_text.markdown(sMessage)
+
+                scrobble = get_lastfm_scrobbles(row['ARTISTA'], row['ALBUM'], API_KEY, USER)
+                df.at[index, 'SCROBBLES'] = scrobble
+
+        status_text.success("Fatto!")
 
     with col_tab:
         st.subheader(f"Album ascoltati {pageName.lower()}")

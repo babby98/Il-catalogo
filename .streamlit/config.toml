@@ -4,6 +4,4 @@ backgroundColor = "#0e1117"
 secondaryBackgroundColor = "#262730"
 textColor = "#fafafa"
 
-# QUI CAMBI IL FONT
-# Opzioni ufficiali: "sans serif", "serif", "monospace"
 font = "Noto Sans:https://fonts.googleapis.com/css2?family=Noto+Sans&display=swap"
