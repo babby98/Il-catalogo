@@ -6,3 +6,5 @@ requests
 fastapi
 uvicorn[standard]
 pycountry
+scikit-learn
+numpy

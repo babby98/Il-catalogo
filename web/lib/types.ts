@@ -74,3 +74,52 @@ export type Period =
   | { kind: "decade"; value: number }
   | { kind: "year"; value: number };
 
+export interface NetworkAlbum {
+  id: string;
+  album: string;
+  rating: number;
+  rating_color: string;
+  year: number | null;
+  cover: string | null;
+}
+
+export interface NetworkNode {
+  id: string;
+  name: string;
+  country_code: string | null;
+  country_name: string | null;
+  album_count: number;
+  avg_rating: number;
+  rating_color: string;
+  rating_text_color: string;
+  scrobbles: number;
+  genres: string[];
+  tags: string[];
+  cover: string | null;
+  albums: NetworkAlbum[];
+  // Graph simulation runtime properties
+  x?: number;
+  y?: number;
+  vx?: number;
+  vy?: number;
+  fx?: number;
+  fy?: number;
+}
+
+export interface NetworkLink {
+  source: string | NetworkNode;
+  target: string | NetworkNode;
+  weight: number;
+  shared_traits: string[];
+}
+
+export interface NetworkData {
+  nodes: NetworkNode[];
+  links: NetworkLink[];
+  stats: {
+    total_artists: number;
+    total_connections: number;
+    density: number;
+  };
+}
+

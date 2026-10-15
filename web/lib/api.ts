@@ -7,6 +7,7 @@ import type {
   Periods,
   Stats,
   TopOfYear,
+  NetworkData,
 } from "./types";
 
 /**
@@ -51,5 +52,13 @@ export const api = {
   countries: () => get<CountriesResponse>("/api/countries"),
   albums: (p: Period = { kind: "all" }) => get<Album[]>(`/api/albums${periodQuery(p)}`),
   album: (id: string) => get<AlbumDetail>(`/api/albums/${encodeURIComponent(id)}`),
+  network: (params?: { min_albums?: number; top_k?: number; threshold?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.min_albums !== undefined) q.set("min_albums", String(params.min_albums));
+    if (params?.top_k !== undefined) q.set("top_k", String(params.top_k));
+    if (params?.threshold !== undefined) q.set("threshold", String(params.threshold));
+    const qs = q.toString();
+    return get<NetworkData>(`/api/network${qs ? `?${qs}` : ""}`);
+  },
 };
 

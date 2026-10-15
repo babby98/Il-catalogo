@@ -32,6 +32,11 @@ from urllib.parse import quote
 import pandas as pd
 import pycountry
 import requests
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import StandardScaler
+from sklearn.neural_network import MLPRegressor
+from sklearn.metrics.pairwise import cosine_similarity
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -582,3 +587,217 @@ def album_detail(album_id: str):
         "tracks": tracks,
     })
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Neural Network Autoencoder & Artist Graph
+# --------------------------------------------------------------------------- #
+def _extract_shared_traits(a1: dict, a2: dict) -> list[str]:
+    traits: list[str] = []
+    # Common genres
+    common_genres = sorted(list(a1["_genres"] & a2["_genres"]))
+    for g in common_genres:
+        if g not in traits:
+            traits.append(g)
+            if len(traits) >= 4:
+                return traits
+    # Same nationality
+    if a1["country_name"] and a1["country_name"] == a2["country_name"]:
+        traits.append(a1["country_name"])
+        if len(traits) >= 4:
+            return traits
+    # Common Last.fm tags
+    common_tags = sorted(list(a1["_tags"] & a2["_tags"]))
+    for t in common_tags:
+        clean = t.title()
+        if clean not in traits and t not in ["seen live", "albums i own", "favorites"]:
+            traits.append(clean)
+            if len(traits) >= 4:
+                return traits
+    # Common record labels
+    common_labels = sorted(list(a1["_labels"] & a2["_labels"]))
+    for lb in common_labels:
+        if lb and lb != "-" and lb not in traits:
+            traits.append(lb)
+            if len(traits) >= 4:
+                return traits
+    return traits[:4]
+
+
+@ttl_cache(600)
+def get_neural_artist_network() -> tuple[list[dict], np.ndarray, dict[str, int]]:
+    albums = get_albums()
+    artists_map: dict[str, dict] = {}
+    for a in albums:
+        name = a["artist"]
+        if name not in artists_map:
+            code = countries.lookup(name)
+            info = country_info(code)
+            artists_map[name] = {
+                "id": slugify(name),
+                "name": name,
+                "country_code": info["code"] if info else None,
+                "country_name": info["name"] if info else None,
+                "albums": [],
+                "_genres": set(),
+                "_labels": set(),
+                "_tags": set(),
+                "_ratings": [],
+                "_years": [],
+                "scrobbles": 0,
+                "cover": None,
+            }
+
+        artists_map[name]["albums"].append({
+            "id": a["id"],
+            "album": a["album"],
+            "rating": a["rating"],
+            "rating_color": a["rating_color"],
+            "year": a["year"],
+            "cover": a.get("cover"),
+        })
+        if a.get("cover") and not artists_map[name]["cover"]:
+            artists_map[name]["cover"] = a["cover"]
+        if a.get("genre"):
+            artists_map[name]["_genres"].add(a["genre"].strip())
+        if a.get("label"):
+            artists_map[name]["_labels"].add(a["label"].strip())
+        if a.get("rating"):
+            artists_map[name]["_ratings"].append(a["rating"])
+        if a.get("year"):
+            artists_map[name]["_years"].append(a["year"])
+        artists_map[name]["scrobbles"] += a.get("scrobbles", 0)
+
+        # Check Last.fm cache for tags and cover
+        k = lastfm_resolver.key(a["artist"], a["album"])
+        entry = lastfm_resolver.cache.get(k)
+        if entry:
+            if entry.get("cover") and not artists_map[name]["cover"]:
+                artists_map[name]["cover"] = entry["cover"]
+            if entry.get("tags"):
+                for t in entry["tags"]:
+                    artists_map[name]["_tags"].add(str(t).strip().lower())
+
+    artist_list = list(artists_map.values())
+    text_corpus: list[str] = []
+    numeric_features: list[list[float]] = []
+
+    for a in artist_list:
+        a["album_count"] = len(a["albums"])
+        avg_rating = round(float(np.mean(a["_ratings"])), 2) if a["_ratings"] else 7.0
+        a["avg_rating"] = avg_rating
+        bg, fg = csc.color_vote_list(avg_rating)
+        a["rating_color"] = bg
+        a["rating_text_color"] = fg
+        a["genres"] = sorted(list(a["_genres"]))
+        a["tags"] = sorted(list(a["_tags"]))[:8]
+        # Sort albums descending by rating
+        a["albums"].sort(key=lambda x: -x["rating"])
+
+        text_parts = list(a["_genres"]) + list(a["_tags"]) + list(a["_labels"])
+        if a["country_name"]:
+            text_parts.append(a["country_name"])
+        text_corpus.append(" ".join(text_parts) if text_parts else "music")
+
+        avg_y = float(np.mean(a["_years"])) if a["_years"] else 2010.0
+        log_s = float(np.log1p(a["scrobbles"]))
+        numeric_features.append([avg_y, avg_rating, log_s])
+
+    # Feature representation: TF-IDF + StandardScaler
+    vec = TfidfVectorizer(max_features=256, stop_words="english")
+    X_text = vec.fit_transform(text_corpus).toarray()
+    scaler = StandardScaler()
+    X_num = scaler.fit_transform(numeric_features)
+    X = np.hstack([X_text, X_num])
+
+    # Autoencoder compression to 16 dimensions
+    mlp = MLPRegressor(
+        hidden_layer_sizes=(64, 16, 64),
+        activation="relu",
+        max_iter=160,
+        random_state=42,
+        early_stopping=True,
+    )
+    mlp.fit(X, X)
+
+    # Central bottleneck layer extraction
+    h1 = np.maximum(0, X @ mlp.coefs_[0] + mlp.intercepts_[0])
+    latent = np.maximum(0, h1 @ mlp.coefs_[1] + mlp.intercepts_[1])
+
+    sim_latent = cosine_similarity(latent)
+    sim_text = cosine_similarity(X_text)
+    sim_combined = 0.65 * sim_latent + 0.35 * sim_text
+
+    id_to_idx = {a["id"]: i for i, a in enumerate(artist_list)}
+
+    return artist_list, sim_combined, id_to_idx
+
+
+@app.get("/api/network")
+def artist_network(
+    min_albums: int = Query(1, ge=1, le=10),
+    top_k: int = Query(4, ge=1, le=10),
+    threshold: float = Query(0.35, ge=0.0, le=1.0),
+):
+    artist_list, sim_combined, _ = get_neural_artist_network()
+
+    filtered_indices = [i for i, a in enumerate(artist_list) if a["album_count"] >= min_albums]
+    idx_set = set(filtered_indices)
+
+    links: list[dict] = []
+    seen_pairs: set[tuple[int, int]] = set()
+
+    for i in filtered_indices:
+        order = np.argsort(sim_combined[i])[::-1]
+        count = 0
+        for j in order:
+            if i == j or j not in idx_set:
+                continue
+            w = float(sim_combined[i, j])
+            if w < threshold:
+                break
+            pair = (min(i, j), max(i, j))
+            if pair not in seen_pairs:
+                seen_pairs.add(pair)
+                links.append({
+                    "source": artist_list[pair[0]]["id"],
+                    "target": artist_list[pair[1]]["id"],
+                    "weight": round(w, 3),
+                    "shared_traits": _extract_shared_traits(artist_list[pair[0]], artist_list[pair[1]]),
+                })
+            count += 1
+            if count >= top_k:
+                break
+
+    nodes = []
+    for i in filtered_indices:
+        a = artist_list[i]
+        nodes.append({
+            "id": a["id"],
+            "name": a["name"],
+            "country_code": a["country_code"],
+            "country_name": a["country_name"],
+            "album_count": a["album_count"],
+            "avg_rating": a["avg_rating"],
+            "rating_color": a["rating_color"],
+            "rating_text_color": a["rating_text_color"],
+            "scrobbles": a["scrobbles"],
+            "genres": a["genres"],
+            "tags": a["tags"],
+            "cover": a["cover"],
+            "albums": a["albums"],
+        })
+
+    n = len(nodes)
+    possible_edges = (n * (n - 1)) / 2 if n > 1 else 1
+    density = round(len(links) / max(possible_edges, 1), 4)
+
+    return {
+        "nodes": nodes,
+        "links": links,
+        "stats": {
+            "total_artists": n,
+            "total_connections": len(links),
+            "density": density,
+        },
+    }

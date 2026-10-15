@@ -3,6 +3,7 @@ import Link from "next/link";
 import { HomeHero, HomeHeroSkeleton } from "@/components/home/HomeHero";
 import { TopOfYear, TopOfYearSkeleton } from "@/components/home/TopOfYear";
 import { LazyHeatmap } from "@/components/home/LazyHeatmap";
+import { LazyArtistNetwork } from "@/components/network/LazyArtistNetwork";
 import { TopRatedTable } from "@/components/home/TopRatedTable";
 import { ChartPlaceholders } from "@/components/home/ChartPlaceholders";
 import { SectionHeader } from "@/components/ui/primitives";
@@ -25,6 +26,21 @@ export default function HomePage() {
         <SectionHeader eyebrow="Geography" title={<span id="map">Where the music comes from</span>} />
         <div className="glass p-4 sm:p-6">
           <LazyHeatmap />
+        </div>
+      </section>
+
+      <section aria-labelledby="neural-network">
+        <SectionHeader
+          eyebrow="Machine Learning"
+          title={<span id="neural-network">Rete Neurale Artisti</span>}
+          aside={
+            <span className="text-xs text-zinc-500">
+              Autoencoder 16D latent space · Obsidian Graph View
+            </span>
+          }
+        />
+        <div className="glass p-4 sm:p-6">
+          <LazyArtistNetwork />
         </div>
       </section>
 
